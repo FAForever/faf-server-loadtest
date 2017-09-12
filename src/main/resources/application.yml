@@ -1,0 +1,17 @@
+loadtest:
+  clients: ${CLIENTS:1}
+  server-address: ${SERVER_HOST:localhost}
+  server-port: ${SERVER_PORT:8001}
+  no-wait: ${NO_WAIT:false}
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: faf-server
+    password: banana
+    url: jdbc:mysql://localhost:3306/faf?useSSL=false
+
+logging:
+  level:
+    org.springframework: warn
+    com.faforever.loadtest: debug

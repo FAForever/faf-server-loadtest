@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.chart.StackedAreaChart?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<VBox fx:id="mainRoot" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="0.0" minWidth="0.0" prefHeight="800.0" prefWidth="1200.0" spacing="10.0" xmlns="http://javafx.com/javafx/8.0.111" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.faforever.loadtest.server.ui.MainController">
+   <children>
+      <HBox alignment="CENTER" spacing="4.0" VBox.vgrow="NEVER">
+         <children>
+            <GridPane hgap="10.0" vgap="5.0" HBox.hgrow="ALWAYS">
+              <columnConstraints>
+                <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" />
+                  <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" />
+                  <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" />
+                  <ColumnConstraints hgrow="SOMETIMES" minWidth="10.0" />
+                  <ColumnConstraints minWidth="0.0" prefWidth="40.0" />
+                  <ColumnConstraints hgrow="ALWAYS" minWidth="10.0" />
+                  <ColumnConstraints minWidth="0.0" prefWidth="40.0" />
+              </columnConstraints>
+              <rowConstraints>
+                <RowConstraints minHeight="10.0" vgrow="NEVER" />
+                <RowConstraints minHeight="10.0" valignment="TOP" vgrow="SOMETIMES" />
+              </rowConstraints>
+               <children>
+                  <Label alignment="BOTTOM_LEFT" contentDisplay="BOTTOM" graphicTextGap="0.0" maxWidth="1.7976931348623157E308" text="Server address" GridPane.valignment="BOTTOM" />
+                  <Label alignment="BOTTOM_LEFT" contentDisplay="BOTTOM" graphicTextGap="0.0" maxWidth="1.7976931348623157E308" text="Port" GridPane.columnIndex="1" GridPane.valignment="BOTTOM" />
+                  <Label alignment="BOTTOM_LEFT" contentDisplay="BOTTOM" graphicTextGap="0.0" maxWidth="1.7976931348623157E308" text="Test duration" GridPane.columnIndex="2" GridPane.valignment="BOTTOM" />
+                  <TextField fx:id="hostField" promptText="Server address" GridPane.rowIndex="1" />
+                  <TextField fx:id="portField" prefColumnCount="4" promptText="Port" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                  <TextField fx:id="numberOfSecondsField" prefColumnCount="5" promptText="Seconds" GridPane.columnIndex="2" GridPane.rowIndex="1" />
+                  <ComboBox fx:id="thinkBehaviorBox" promptText="Think behavior" GridPane.columnIndex="3" GridPane.rowIndex="1" />
+                  <Label text="Think behavior" GridPane.columnIndex="3" GridPane.valignment="BOTTOM" />
+                  <Label contentDisplay="RIGHT" text="Clients" GridPane.columnIndex="5" GridPane.halignment="CENTER">
+                     <graphic>
+                        <TextField fx:id="numberOfClientsField" prefColumnCount="5" />
+                     </graphic></Label>
+                  <Slider fx:id="numberOfClientsSlider" blockIncrement="100.0" majorTickUnit="1000.0" max="5000.0" minorTickCount="25" showTickLabels="true" showTickMarks="true" value="1000.0" GridPane.columnIndex="5" GridPane.rowIndex="1" />
+               </children>
+            </GridPane>
+            <Button fx:id="stopButton" cancelButton="true" maxHeight="1.7976931348623157E308" mnemonicParsing="false" onAction="#onStopButtonClicked" style="-fx-base: red;" text="Stop">
+               <font>
+                  <Font size="16.0" />
+               </font>
+               <padding>
+                  <Insets left="40.0" right="40.0" />
+               </padding>
+            </Button>
+            <Button fx:id="startButton" defaultButton="true" maxHeight="1.7976931348623157E308" mnemonicParsing="false" onAction="#onStartButtonClicked" style="-fx-base: green;" text="Start">
+               <font>
+                  <Font size="16.0" />
+               </font>
+               <padding>
+                  <Insets left="40.0" right="40.0" />
+               </padding>
+            </Button>
+            <Separator orientation="VERTICAL" />
+            <GridPane hgap="10.0">
+              <columnConstraints>
+                  <ColumnConstraints hgrow="SOMETIMES" />
+                <ColumnConstraints hgrow="SOMETIMES" />
+                <ColumnConstraints hgrow="SOMETIMES" />
+                  <ColumnConstraints hgrow="SOMETIMES" />
+              </columnConstraints>
+              <rowConstraints>
+                <RowConstraints vgrow="SOMETIMES" />
+                  <RowConstraints vgrow="SOMETIMES" />
+                  <RowConstraints vgrow="SOMETIMES" />
+              </rowConstraints>
+               <children>
+                  <Label text="Messages" GridPane.columnIndex="2" GridPane.columnSpan="2147483647" GridPane.halignment="CENTER" />
+                  <Label text="Sent" GridPane.columnIndex="2" GridPane.halignment="CENTER" GridPane.rowIndex="2" />
+                  <Label text="Received" GridPane.columnIndex="3" GridPane.halignment="CENTER" GridPane.rowIndex="2" />
+                  <Label fx:id="sentMessagesLabel" text="0000" GridPane.columnIndex="2" GridPane.halignment="CENTER" GridPane.rowIndex="1">
+                     <font>
+                        <Font size="24.0" />
+                     </font>
+                  </Label>
+                  <Label fx:id="receivedMessagesLabel" text="0000" GridPane.columnIndex="3" GridPane.halignment="CENTER" GridPane.rowIndex="1">
+                     <font>
+                        <Font size="24.0" />
+                     </font>
+                  </Label>
+                  <Label text="Games" GridPane.halignment="CENTER" />
+                  <Label text="Created" GridPane.halignment="CENTER" GridPane.rowIndex="2" />
+                  <Label fx:id="createdGamesLabel" text="000" GridPane.halignment="CENTER" GridPane.rowIndex="1">
+                     <font>
+                        <Font size="24.0" />
+                     </font>
+                  </Label>
+                  <Separator orientation="VERTICAL" GridPane.columnIndex="1" GridPane.rowSpan="2147483647" />
+               </children>
+            </GridPane>
+         </children>
+      </HBox>
+      <Separator prefWidth="200.0" />
+      <StackedAreaChart fx:id="clientStatesChart" animated="false" createSymbols="false" title="Client States" VBox.vgrow="ALWAYS">
+        <xAxis>
+          <NumberAxis minorTickCount="0" side="BOTTOM" tickUnit="1.0" upperBound="1.0" />
+        </xAxis>
+        <yAxis>
+          <NumberAxis animated="false" side="LEFT" />
+        </yAxis>
+      </StackedAreaChart>
+      <LineChart fx:id="performanceChart" animated="false" createSymbols="false" title="Message Rate" VBox.vgrow="ALWAYS">
+        <xAxis>
+          <NumberAxis side="BOTTOM" />
+        </xAxis>
+        <yAxis>
+          <NumberAxis side="LEFT" />
+        </yAxis>
+      </LineChart>
+   </children>
+   <padding>
+      <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+   </padding>
+</VBox>
