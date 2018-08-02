@@ -3,6 +3,7 @@ package com.faforever.loadtest.server.client;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.InetSocketAddress;
 
@@ -17,6 +18,7 @@ public class ClientService {
     this.applicationContext = applicationContext;
   }
 
+  @Transactional
   public ClientSimulator createClientSimulator(int userId, InetSocketAddress serverAddress, ThinkBehavior thinkBehavior, ClientSimulator.ClientEventListener clientEventListener) {
     User user = new User(userId, "User #" + userId, String.valueOf(userId));
 
@@ -33,7 +35,7 @@ public class ClientService {
     String passwordHash = user.getPasswordHash();
     jdbcTemplate.update("INSERT INTO  login (login, password, email, steamid) VALUES (?, ?, ?, ?)" +
             "ON DUPLICATE KEY UPDATE password = ?",
-        user.getUsername(), passwordHash, user.getEmail(), user.getId(), passwordHash
+        user.getUsername(), passwordHash, user.getEmail(), 76561198722330475L + user.getId(), passwordHash
     );
   }
 }
