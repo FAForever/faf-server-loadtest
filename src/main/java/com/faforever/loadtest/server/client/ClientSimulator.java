@@ -9,6 +9,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
@@ -45,10 +46,12 @@ public class ClientSimulator implements Runnable {
   }
 
   public enum State {
+    // Order is crucial
     DISCONNECTED, CONNECTING, CONNECTED, INITIATING_SESSION, LOGGING_IN, IDLE, CREATING_GAME, GAME_LOBBY, PLAYING, SCORE_SCREEN
   }
 
   private static final String JSON_STATS;
+  protected static final int PLAYERS_PER_GAME = 12;
 
   static {
     try {
@@ -60,6 +63,9 @@ public class ClientSimulator implements Runnable {
 
   private final FafLegacyTcpClient tcpClient;
   private final ObjectMapper objectMapper;
+  private final LoadTestProperties properties;
+  private final Object writeMonitor;
+
   @Setter
   private ThinkBehavior thinkBehavior;
   @Setter
@@ -79,7 +85,10 @@ public class ClientSimulator implements Runnable {
   public ClientSimulator(FafLegacyTcpClient tcpClient, ObjectMapper objectMapper, LoadTestProperties properties) {
     this.tcpClient = tcpClient;
     this.objectMapper = objectMapper;
+    this.properties = properties;
     this.clientMessageHandlers = new HashMap<>();
+    this.writeMonitor = new Object();
+    this.state = State.DISCONNECTED;
 
     clientMessageHandlers.put("session", this::onSession);
     clientMessageHandlers.put("social", this::noOp);
@@ -113,9 +122,9 @@ public class ClientSimulator implements Runnable {
   }
 
   private void changeState(State oldState, State newState) {
-    if (state != oldState) {
-      throw new IllegalStateException("Expected to be in state " + oldState + " but was: " + state);
-    }
+//    if (state != oldState) {
+//      throw new IllegalStateException("Expected to be in state " + oldState + " but was: " + state);
+//    }
     state = newState;
     clientEventListener.onStateChanged(oldState, newState);
   }
@@ -124,7 +133,7 @@ public class ClientSimulator implements Runnable {
     clientEventListener.onGameCreated();
     openGame();
 
-    executor.schedule(this::playGame, thinkTime(60_000, 300_000), TimeUnit.MILLISECONDS);
+    executor.schedule(this::playGame, thinkTime(properties.getLobbyMinTime(), properties.getLobbyMaxTime()), TimeUnit.MILLISECONDS);
   }
 
   private void noOp(Map<String, Object> map) {
@@ -133,10 +142,10 @@ public class ClientSimulator implements Runnable {
 
   private void onAuthenticationSuccess(Map<String, Object> map) {
     changeState(State.LOGGING_IN, State.IDLE);
-    executor.schedule(this::hostNewGame, thinkTime(10_000, 300_000), TimeUnit.MILLISECONDS);
+    executor.schedule(this::hostNewGame, thinkTime(properties.getIdleMinTime(), properties.getIdleMaxTime()), TimeUnit.MILLISECONDS);
   }
 
-  private long thinkTime(int minMillis, int maxMillis) {
+  private long thinkTime(long minMillis, long maxMillis) {
     switch (thinkBehavior) {
       case HUMAN:
         return (long) (Math.random() * (maxMillis - minMillis)) + minMillis;
@@ -175,7 +184,9 @@ public class ClientSimulator implements Runnable {
   private void write(String message) {
     clientEventListener.onMessageSent();
     log.trace("Sending: {}", message);
-    tcpClient.write(outputStream, message);
+    synchronized (writeMonitor) {
+      tcpClient.write(outputStream, message);
+    }
   }
 
   @SneakyThrows
@@ -189,7 +200,7 @@ public class ClientSimulator implements Runnable {
     try {
       socket = new Socket(serverAddress.getAddress(), serverAddress.getPort());
     } catch (IOException e) {
-      log.debug("Connection failed");
+      log.debug("Connection failed ({})", e.getMessage());
       changeState(State.CONNECTING, State.DISCONNECTED);
       if (!stop) {
         executor.schedule(ClientSimulator.this::connect, 3_000, TimeUnit.MILLISECONDS);
@@ -211,7 +222,7 @@ public class ClientSimulator implements Runnable {
             onServerMessage(message);
           }
         } catch (IOException e) {
-          log.debug("Connection lost");
+          log.debug("Connection lost ({})", e.getMessage());
           changeState(state, ClientSimulator.State.DISCONNECTED);
           if (stop) {
             log.info("Client {} terminated", user.getId());
@@ -277,7 +288,7 @@ public class ClientSimulator implements Runnable {
   private void closeGame() {
     changeState(State.SCORE_SCREEN, State.IDLE);
     sendGameState("Ended");
-    executor.schedule(this::hostNewGame, thinkTime(30_000, 30_000), TimeUnit.MILLISECONDS);
+    executor.schedule(this::hostNewGame, thinkTime(properties.getIdleMinTime(), properties.getIdleMaxTime()), TimeUnit.MILLISECONDS);
   }
 
   private void sendGameState(String state) {
@@ -293,10 +304,13 @@ public class ClientSimulator implements Runnable {
     sendGameState("Launching");
 
     long timeTillGameEnd = 0;
-    for (int playerId = 1; playerId <= 12; playerId++) {
-      int finalPlayerId = playerId;
-      long timeTillDeath = thinkTime(playerId * 30_000, playerId * 30_000 + 60_000);
+    long totalGameTime = thinkTime(properties.getGameMinTime(), properties.getGameMaxTime());
+
+    for (int playerId = 1; playerId <= PLAYERS_PER_GAME; playerId++) {
+      long timeTillDeath = thinkTime(0, totalGameTime);
       timeTillGameEnd = Math.max(timeTillDeath, timeTillGameEnd);
+
+      int finalPlayerId = playerId;
       executor.schedule(() -> letPlayerDie(finalPlayerId), timeTillDeath, TimeUnit.MILLISECONDS);
     }
     executor.schedule(this::endGame, timeTillGameEnd + 3_000, TimeUnit.MILLISECONDS);
@@ -304,7 +318,7 @@ public class ClientSimulator implements Runnable {
 
   private void endGame() {
     changeState(State.PLAYING, State.SCORE_SCREEN);
-    executor.schedule(this::closeGame, thinkTime(3_000, 30_000), TimeUnit.MILLISECONDS);
+    executor.schedule(this::closeGame, thinkTime(properties.getScoreScreenMinTime(), properties.getScoreScreenMaxTime()), TimeUnit.MILLISECONDS);
   }
 
   private void letPlayerDie(int playerId) {
@@ -358,20 +372,20 @@ public class ClientSimulator implements Runnable {
       sendGameOption("NavalExpansionsAllowed", "4");
       sendGameOption("OmniCheat", "on");
       sendGameOption("ScenarioFile", "/maps/12 The Pass/12 The Pass_scenario.lua");
-      sendGameOption("Slots", 12);
+      sendGameOption("Slots", PLAYERS_PER_GAME);
 
-      executor.schedule(this::havePlayersJoin, thinkTime(10_000, 60_000), TimeUnit.MILLISECONDS);
-    }, thinkTime(1000, 5000), TimeUnit.MILLISECONDS);
+      executor.schedule(this::havePlayersJoin, thinkTime(properties.getLobbyMinTime() / PLAYERS_PER_GAME, properties.getLobbyMinTime()), TimeUnit.MILLISECONDS);
+    }, thinkTime(properties.getGameStartupMinTime(), properties.getGameStartupMaxTime()), TimeUnit.MILLISECONDS);
   }
 
   private void havePlayersJoin() {
-    for (int playerId = 1; playerId <= 12; playerId++) {
+    for (int playerId = 1; playerId <= PLAYERS_PER_GAME; playerId++) {
       sendPlayerOption(playerId, "Faction", 1);
       sendPlayerOption(playerId, "Color", playerId);
       sendPlayerOption(playerId, "Team", playerId);
       sendPlayerOption(playerId, "StartSpot", playerId);
 
-      for (int slotId = 1; slotId <= 12; slotId++) {
+      for (int slotId = 1; slotId <= PLAYERS_PER_GAME; slotId++) {
         clearSlot(slotId);
       }
     }
@@ -436,5 +450,14 @@ public class ClientSimulator implements Runnable {
 
   public State getState() {
     return state;
+  }
+
+  @Scheduled(fixedDelay = 45_000)
+  public void sendPing() {
+    if (state.ordinal() < State.IDLE.ordinal()) {
+      return;
+    }
+
+    write(ImmutableMap.of("command", "ping"));
   }
 }

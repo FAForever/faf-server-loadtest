@@ -1,6 +1,5 @@
 package com.faforever.loadtest.server.client;
 
-import com.google.common.io.ByteStreams;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
@@ -16,13 +15,6 @@ public class FafLegacyTcpClient {
 
   private static final Charset CHARSET = StandardCharsets.UTF_16BE;
 
-  public void write(OutputStream out, InputStream inputStream) throws IOException {
-    byte[] bytes = ByteStreams.toByteArray(inputStream);
-
-    writeInt32(out, bytes.length);
-    out.write(bytes);
-  }
-
   public void write(OutputStream out, String s) throws IOException {
     if (s == null) {
       writeInt32(out, -1);
@@ -36,13 +28,12 @@ public class FafLegacyTcpClient {
   }
 
   public String read(InputStream inputStream) throws IOException {
-    byte[] buffer = new byte[0];
     int responseSize = readInt(inputStream);
     int stringSize = readInt(inputStream);
     if (stringSize == -1) {
       return null;
     }
-    buffer = new byte[stringSize];
+    byte[] buffer = new byte[stringSize];
     readFully(inputStream, buffer, 0, buffer.length);
     return new String(buffer, CHARSET);
   }

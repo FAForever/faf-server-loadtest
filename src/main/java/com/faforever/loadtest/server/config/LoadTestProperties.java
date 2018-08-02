@@ -8,9 +8,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "loadtest", ignoreUnknownFields = false)
 public class LoadTestProperties {
 
-  private int clients;
-  private int seconds;
   private String serverAddress;
   private int serverPort;
   private ThinkBehavior thinkBehavior = ThinkBehavior.HUMAN;
+
+  private long lobbyMinTime = 60_000;
+  private long lobbyMaxTime = 15 * 60_000;
+  private long idleMinTime = 60_000;
+  private long idleMaxTime = 60 * 60_000;
+  private long gameMinTime = 2 * 60_000;
+  private long gameMaxTime = 60 * 60_000;
+  private long scoreScreenMinTime = 3_000;
+  private long scoreScreenMaxTime = 30 * 60_000;
+  private long gameStartupMinTime = 1_000;
+  private long gameStartupMaxTime = 15_000;
 }
