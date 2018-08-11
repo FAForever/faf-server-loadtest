@@ -222,7 +222,7 @@ public class ClientSimulator implements Runnable {
             onServerMessage(message);
           }
         } catch (IOException e) {
-          log.debug("Connection lost ({})", e.getMessage());
+          log.debug("Connection lost ({}: {})", e.getClass().getName(), e.getMessage());
           changeState(state, ClientSimulator.State.DISCONNECTED);
           if (stop) {
             log.info("Client {} terminated", user.getId());
@@ -245,6 +245,9 @@ public class ClientSimulator implements Runnable {
     log.trace("Received: {}", message);
     if ("PING".equals(message)) {
       write("PONG");
+      return;
+    }
+    if ("PONG".equals(message)) {
       return;
     }
     Map<String, Object> map = objectMapper.readValue(message, Map.class);
@@ -322,8 +325,8 @@ public class ClientSimulator implements Runnable {
   }
 
   private void letPlayerDie(int playerId) {
-    sendGameResult(playerId, "score 10");
-    sendGameResult(playerId, "victory");
+    sendGameResult(playerId, "score 1");
+    sendGameResult(playerId, "victory 10");
     sendJsonStats(playerId);
   }
 
