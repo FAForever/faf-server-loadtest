@@ -13,5 +13,6 @@ spring:
 logging:
   level:
     org.springframework: warn
-    com.faforever.loadtest: debug
+    com.faforever.loadtest.server.client.ClientSimulator: trace
+    com.faforever.loadtest.server.runner.LoadTestRunner: warn
 
