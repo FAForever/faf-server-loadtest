@@ -65,6 +65,8 @@ public class ClientSimulator implements Runnable {
   private final ObjectMapper objectMapper;
   private final LoadTestProperties properties;
   private final Object writeMonitor;
+  private final Map<String, Consumer<Map<String, Object>>> clientMessageHandlers;
+  private final Map<String, Consumer<Map<String, Object>>> gameMessageHandlers;
 
   @Setter
   private ThinkBehavior thinkBehavior;
@@ -77,7 +79,6 @@ public class ClientSimulator implements Runnable {
   private ScheduledThreadPoolExecutor executor;
   private OutputStream outputStream;
   private State state;
-  private Map<String, Consumer<Map<String, Object>>> clientMessageHandlers;
   private Socket socket;
   private volatile boolean stop;
   private Thread serverReader;
@@ -87,6 +88,7 @@ public class ClientSimulator implements Runnable {
     this.objectMapper = objectMapper;
     this.properties = properties;
     this.clientMessageHandlers = new HashMap<>();
+    this.gameMessageHandlers = new HashMap<>();
     this.writeMonitor = new Object();
     this.state = State.DISCONNECTED;
 
@@ -100,6 +102,7 @@ public class ClientSimulator implements Runnable {
     clientMessageHandlers.put("player_info", this::noOp);
     clientMessageHandlers.put("game_info", this::noOp);
 
+    gameMessageHandlers.put("HostGame", this::onHostGame);
   }
 
   @Override
@@ -132,8 +135,10 @@ public class ClientSimulator implements Runnable {
   private void onOpenGame(Map<String, Object> stringObjectMap) {
     clientEventListener.onGameCreated();
     openGame();
+  }
 
-    executor.schedule(this::playGame, thinkTime(properties.getLobbyMinTime(), properties.getLobbyMaxTime()), TimeUnit.MILLISECONDS);
+  private void onHostGame(Map<String, Object> stringObjectMap) {
+    hostGame();
   }
 
   private void noOp(Map<String, Object> map) {
@@ -142,7 +147,7 @@ public class ClientSimulator implements Runnable {
 
   private void onAuthenticationSuccess(Map<String, Object> map) {
     changeState(State.LOGGING_IN, State.IDLE);
-    executor.schedule(this::hostNewGame, thinkTime(properties.getIdleMinTime(), properties.getIdleMaxTime()), TimeUnit.MILLISECONDS);
+    executor.schedule(this::requestHostGame, thinkTime(properties.getIdleMinTime(), properties.getIdleMaxTime()), TimeUnit.MILLISECONDS);
   }
 
   private long thinkTime(long minMillis, long maxMillis) {
@@ -182,11 +187,11 @@ public class ClientSimulator implements Runnable {
 
   @SneakyThrows
   private void write(String message) {
-    clientEventListener.onMessageSent();
     log.trace("Sending: {}", message);
     synchronized (writeMonitor) {
       tcpClient.write(outputStream, message);
     }
+    clientEventListener.onMessageSent();
   }
 
   @SneakyThrows
@@ -278,20 +283,26 @@ public class ClientSimulator implements Runnable {
     String command = (String) map.get("command");
     Consumer<Map<String, Object>> handler = clientMessageHandlers.get(command);
     if (handler == null) {
-      log.warn("No handler for: " + map);
+      log.warn("No handler for client message: " + map);
       return;
     }
     handler.accept(map);
   }
 
   private void handleGameMessage(Map<String, Object> map) {
-    // No-Op
+    String command = (String) map.get("command");
+    Consumer<Map<String, Object>> handler = gameMessageHandlers.get(command);
+    if (handler == null) {
+      log.warn("No handler for game message: " + map);
+      return;
+    }
+    handler.accept(map);
   }
 
   private void closeGame() {
     changeState(State.SCORE_SCREEN, State.IDLE);
     sendGameState("Ended");
-    executor.schedule(this::hostNewGame, thinkTime(properties.getIdleMinTime(), properties.getIdleMaxTime()), TimeUnit.MILLISECONDS);
+    executor.schedule(this::requestHostGame, thinkTime(properties.getIdleMinTime(), properties.getIdleMaxTime()), TimeUnit.MILLISECONDS);
   }
 
   private void sendGameState(String state) {
@@ -350,35 +361,51 @@ public class ClientSimulator implements Runnable {
     changeState(State.CREATING_GAME, State.GAME_LOBBY);
     sendGameState("Idle");
 
-    executor.schedule(() -> {
-      sendGameState("Lobby");
-      sendGameOption("UnitCap", "1000");
-      sendGameOption("ShareUnitCap", "none");
-      sendGameOption("FogOfWar", "explored");
-      sendGameOption("Victory", "demoralization");
-      sendGameOption("Timeouts", "3");
-      sendGameOption("GameSpeed", "normal");
-      sendGameOption("AllowObservers", 0);
-      sendGameOption("CheatsEnabled", "false");
-      sendGameOption("CivilianAlliance", "enemy");
-      sendGameOption("RevealCivilians", "Yes");
-      sendGameOption("PrebuiltUnits", "Off");
-      sendGameOption("NoRushOption", "Off");
-      sendGameOption("RandomMap", "Off");
-      sendGameOption("Score", "no");
-      sendGameOption("Share", "ShareUntilDeath");
-      sendGameOption("TeamLock", "locked");
-      sendGameOption("BuildMult", "2.0");
-      sendGameOption("CheatMult", "2.0");
-      sendGameOption("TMLRandom", "0");
-      sendGameOption("LandExpansionsAllowed", "5");
-      sendGameOption("NavalExpansionsAllowed", "4");
-      sendGameOption("OmniCheat", "on");
-      sendGameOption("ScenarioFile", "/maps/12 The Pass/12 The Pass_scenario.lua");
-      sendGameOption("Slots", PLAYERS_PER_GAME);
+    executor.schedule(
+        () -> sendGameState("Lobby"),
+        thinkTime(properties.getGameStartupMinTime(), properties.getGameStartupMaxTime()),
+        TimeUnit.MILLISECONDS
+    );
+  }
 
-      executor.schedule(this::havePlayersJoin, thinkTime(properties.getLobbyMinTime() / PLAYERS_PER_GAME, properties.getLobbyMinTime()), TimeUnit.MILLISECONDS);
-    }, thinkTime(properties.getGameStartupMinTime(), properties.getGameStartupMaxTime()), TimeUnit.MILLISECONDS);
+  private void hostGame() {
+    Assert.state(state == State.GAME_LOBBY, "Must be in GAME_LOBBY before hosting game");
+
+    executor.schedule(
+        () -> {
+          sendGameOption("UnitCap", "1000");
+          sendGameOption("ShareUnitCap", "none");
+          sendGameOption("FogOfWar", "explored");
+          sendGameOption("Victory", "demoralization");
+          sendGameOption("Timeouts", "3");
+          sendGameOption("GameSpeed", "normal");
+          sendGameOption("AllowObservers", 0);
+          sendGameOption("CheatsEnabled", "false");
+          sendGameOption("CivilianAlliance", "enemy");
+          sendGameOption("RevealCivilians", "Yes");
+          sendGameOption("PrebuiltUnits", "Off");
+          sendGameOption("NoRushOption", "Off");
+          sendGameOption("RandomMap", "Off");
+          sendGameOption("Score", "no");
+          sendGameOption("Share", "ShareUntilDeath");
+          sendGameOption("TeamLock", "locked");
+          sendGameOption("BuildMult", "2.0");
+          sendGameOption("CheatMult", "2.0");
+          sendGameOption("TMLRandom", "0");
+          sendGameOption("LandExpansionsAllowed", "5");
+          sendGameOption("NavalExpansionsAllowed", "4");
+          sendGameOption("OmniCheat", "on");
+          sendGameOption("ScenarioFile", "/maps/12 The Pass/12 The Pass_scenario.lua");
+          sendGameOption("Slots", PLAYERS_PER_GAME);
+
+          executor.schedule(() -> {
+            havePlayersJoin();
+            playGame();
+          }, thinkTime(properties.getLobbyMinTime() / PLAYERS_PER_GAME, properties.getLobbyMinTime()), TimeUnit.MILLISECONDS);
+        },
+        thinkTime(properties.getGameStartupMinTime(), properties.getGameStartupMaxTime()),
+        TimeUnit.MILLISECONDS
+    );
   }
 
   private void havePlayersJoin() {
@@ -388,7 +415,7 @@ public class ClientSimulator implements Runnable {
       sendPlayerOption(playerId, "Team", playerId);
       sendPlayerOption(playerId, "StartSpot", playerId);
 
-      for (int slotId = 1; slotId <= PLAYERS_PER_GAME; slotId++) {
+      for (int slotId = playerId; slotId <= PLAYERS_PER_GAME; slotId++) {
         clearSlot(slotId);
       }
     }
@@ -418,7 +445,7 @@ public class ClientSimulator implements Runnable {
     ));
   }
 
-  private void hostNewGame() {
+  private void requestHostGame() {
     changeState(State.IDLE, State.CREATING_GAME);
     write(ImmutableMap.<String, Object>builder()
         .put("mapname", "12 The Pass")
