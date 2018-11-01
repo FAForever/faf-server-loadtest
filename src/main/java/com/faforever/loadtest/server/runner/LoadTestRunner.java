@@ -63,9 +63,11 @@ public class LoadTestRunner {
     stopwatch.reset();
     stopwatch.start();
 
-    clientStates.clear();
-    for (ClientSimulator.State state : ClientSimulator.State.values()) {
-      clientStates.put(state, 0);
+    synchronized (clientStates) {
+      clientStates.clear();
+      for (ClientSimulator.State state : ClientSimulator.State.values()) {
+        clientStates.put(state, 0);
+      }
     }
 
     createdGames = new AtomicInteger();
@@ -115,15 +117,19 @@ public class LoadTestRunner {
 
       @Override
       public void onClienStopped(ClientSimulator client) {
-        Optional.ofNullable(client.getState()).ifPresent(state -> clientStates.compute(state, (state1, integer) -> integer - 1));
+        synchronized (clientStates) {
+          Optional.ofNullable(client.getState()).ifPresent(state -> clientStates.compute(state, (state1, integer) -> integer - 1));
+        }
       }
 
       @Override
       public void onStateChanged(ClientSimulator.State oldState, ClientSimulator.State state) {
-        if (oldState != null) {
-          clientStates.compute(oldState, (state1, integer) -> integer - 1);
+        synchronized (clientStates) {
+          if (oldState != null) {
+            clientStates.compute(oldState, (state1, integer) -> integer - 1);
+          }
+          clientStates.compute(state, (state1, integer) -> integer + 1);
         }
-        clientStates.compute(state, (state1, integer) -> integer + 1);
       }
     });
     client.run();

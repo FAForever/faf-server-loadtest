@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 
@@ -85,6 +86,7 @@ public class MainController implements Controller<Pane> {
     onNumberOfClientsChanged(numberOfClientsSlider.valueProperty());
 
     numberOfClientsField.textProperty().bindBidirectional(numberOfClientsSlider.valueProperty(), INT_STRING_CONVERTER);
+    numberOfClientsSlider.setValue(properties.getNumberOfClients());
 
     updateTimeline = new Timeline(
         new KeyFrame(Duration.ZERO, event -> update()),
@@ -94,7 +96,7 @@ public class MainController implements Controller<Pane> {
 
     hostField.setText(properties.getServerAddress());
     portField.setText(String.valueOf(properties.getServerPort()));
-    numberOfSecondsField.setText(String.valueOf(100));
+    numberOfSecondsField.setText(String.valueOf(properties.getTestDurationSeconds()));
 
     thinkBehaviorBox.getItems().setAll(ThinkBehavior.values());
     thinkBehaviorBox.getSelectionModel().select(properties.getThinkBehavior());
@@ -135,27 +137,29 @@ public class MainController implements Controller<Pane> {
   }
 
   private void updateClientStateChart(Statistics statistics) {
-    ObservableList<XYChart.Series<Number, Number>> chartData = clientStatesChart.getData();
-
-    for (ClientSimulator.State state : ClientSimulator.State.values()) {
-      int ordinal = state.ordinal();
-      if (chartData.size() < ordinal + 1) {
-        XYChart.Series<Number, Number> series = new XYChart.Series<>();
-        series.setName(state.toString());
-        chartData.add(series);
-      }
-
-      int elapsedSeconds = statistics.getElapsedMillis() / 1000;
+    synchronized (statistics.getClientStates()) {
       Map<ClientSimulator.State, Integer> clientStates = statistics.getClientStates();
-
-      ObservableList<XYChart.Data<Number, Number>> seriesData = chartData.get(ordinal).getData();
-      XYChart.Data<Number, Number> data = new XYChart.Data<>(elapsedSeconds, clientStates.get(state), state);
-      seriesData.add(data);
+      ObservableList<XYChart.Series<Number, Number>> chartData = clientStatesChart.getData();
+      for (ClientSimulator.State state : ClientSimulator.State.values()) {
+        chartData.get(state.ordinal()).setName(String.format("%s (%d)", state, clientStates.get(state)));
+        int elapsedSeconds = statistics.getElapsedMillis() / 1000;
+        ObservableList<XYChart.Data<Number, Number>> seriesData = chartData.get(state.ordinal()).getData();
+        XYChart.Data<Number, Number> data = new XYChart.Data<>(elapsedSeconds, clientStates.get(state), state);
+        seriesData.add(data);
+      }
     }
   }
 
   public void onStartButtonClicked() {
     clientStatesChart.getData().clear();
+    ObservableList<XYChart.Series<Number, Number>> chartData = clientStatesChart.getData();
+    Arrays.stream(ClientSimulator.State.values())
+        .forEach(state -> {
+          XYChart.Series<Number, Number> series = new XYChart.Series<>();
+          series.setName(String.format("%s (0)", state));
+          chartData.add(series);
+        });
+
     performanceChart.getData().clear();
     loadTestRunner.start(
         hostField.getText(),

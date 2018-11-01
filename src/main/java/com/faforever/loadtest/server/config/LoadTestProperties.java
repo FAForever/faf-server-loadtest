@@ -12,9 +12,11 @@ public class LoadTestProperties {
   private int serverPort;
   private ThinkBehavior thinkBehavior = ThinkBehavior.HUMAN;
 
-  private long lobbyMinTime = 60_000;
+  private int numberOfClients = 1000;
+  private int testDurationSeconds = 360;
+  private long lobbyMinTime = 5_000;
   private long lobbyMaxTime = 15 * 60_000;
-  private long idleMinTime = 60_000;
+  private long idleMinTime = 5_000;
   private long idleMaxTime = 60 * 60_000;
   private long gameMinTime = 2 * 60_000;
   private long gameMaxTime = 60 * 60_000;
